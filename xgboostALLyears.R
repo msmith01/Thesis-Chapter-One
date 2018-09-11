@@ -1,7 +1,9 @@
-rm(list=ls(all=TRUE))
+#rm(list=ls(all=TRUE))
+
 library(readr)
 library(dplyr)
-setwd('C:/Users/Matt/Desktop/PhD-thesis/FINAL/')
+
+setwd('C:/Data')
 
 xgbdata <- read_csv("C:/Users/Matt/Desktop/PhD-thesis/FINAL/data/xgbdata.csv")
 xgbdata1 <- read_csv("C:/Users/Matt/Desktop/PhD-thesis/FINAL/data/xgbdata_lag1.csv")
@@ -9,22 +11,6 @@ xgbdata2 <- read_csv("C:/Users/Matt/Desktop/PhD-thesis/FINAL/data/xgbdata_lag2.c
 xgbdata3 <- read_csv("C:/Users/Matt/Desktop/PhD-thesis/FINAL/data/xgbdata_lag3.csv")
 
 xgbdata1$X1 <- NULL; xgbdata2$X1 <- NULL; xgbdata3$X1 <- NULL
-
-###################################### Removing some firms ######################################################
-IDs <- xgbdata %>% filter(status == 0) %>% select(BvD.ID.number) %>% sample_n(42000)
-
-xgbdata <- xgbdata %>% filter(!BvD.ID.number %in% IDs$BvD.ID.number)
-xgbdata1 <- xgbdata1 %>% filter(!BvD.ID.number %in% IDs$BvD.ID.number)
-xgbdata2 <- xgbdata2 %>% filter(!BvD.ID.number %in% IDs$BvD.ID.number)
-xgbdata3 <- xgbdata3 %>% filter(!BvD.ID.number %in% IDs$BvD.ID.number)
-#################################################################################################################
-
-#################################################################################################################
-# xgbdata$status <- ifelse(xgbdata$status == 1, 0, 1)
-# xgbdata1$status <- ifelse(xgbdata1$status == 1, 0, 1)
-# xgbdata2$status <- ifelse(xgbdata2$status == 1, 0, 1)
-# xgbdata3$status <- ifelse(xgbdata3$status == 1, 0, 1)
-################################################################################################################
 
 set.seed(2277799) #2277799
 xgbdata <- xgbdata[sample(nrow(xgbdata)),]
@@ -36,21 +22,25 @@ smp_size <- floor(0.75 * nrow(xgbdata))
 
 ################################################### Split between train and test data #############################
 
+#Last available year of finance accounts
 train_ind <- sample(seq_len(nrow(xgbdata)), size = smp_size)
 data_train <- xgbdata[train_ind, ]
 data_test <- xgbdata[-train_ind, ]
 ids <- sample(nrow(data_train))
 
+#Last but one available year of financial accounts
 train_ind1 <- sample(seq_len(nrow(xgbdata1)), size = smp_size)
 data_train1 <- xgbdata1[train_ind1, ]
 data_test1 <- xgbdata1[-train_ind1, ]
 ids1 <- sample(nrow(data_train1))
 
+#Last but two available year of financial accounts
 train_ind2 <- sample(seq_len(nrow(xgbdata2)), size = smp_size)
 data_train2 <- xgbdata2[train_ind2, ]
 data_test2 <- xgbdata2[-train_ind2, ]
 ids2 <- sample(nrow(data_train2))
 
+#Last but three available year of financial accounts
 train_ind3 <- sample(seq_len(nrow(xgbdata3)), size = smp_size)
 data_train3 <- xgbdata3[train_ind3, ]
 data_test3 <- xgbdata3[-train_ind3, ]
@@ -110,6 +100,7 @@ sumpos_bankrupt3 <- sum(y_train3 == 1)
 ################################################################################################################
 
 library(xgboost)
+
 dtrain <- xgb.DMatrix(data = as.matrix(x_train), label = y_train, missing = "NaN")
 dtest <- xgb.DMatrix(data = as.matrix(x_test), label = y_test, missing = "NaN")
 
@@ -166,7 +157,7 @@ pred1 <- predict(model1, dtest1, type = 'prob')
 pred2 <- predict(model2, dtest2, type = 'prob')
 pred3 <- predict(model3, dtest3, type = 'prob')
 
-##################################################################################################################
+########################################### Collect the Results ##################################################
 
 results <- NULL
 results$pred <- pred
@@ -197,6 +188,7 @@ results3$BvD.ID.number3 <- data_test3$BvD.ID.number
 results3 <- as.data.frame(results3)
 
 #################################### Confusion Matrix##########################################################
+
 library(caret)
 
 conMat <- confusionMatrix(as.factor(results$prediction), as.factor(results$testactual), mode = "everything", positive = "1")
@@ -247,6 +239,7 @@ MCC3 <- ((TP * TN) - (FP * FN)) / sqrt((TP + FP) * (TP+FN) * (TN+FP) * (TN+FN))
 MCC; MCC1; MCC2; MCC3
 
 ##################################### G-means ##################################################################
+
 G <- sqrt(conMat$byClass[[1]] * conMat$byClass[[2]])
 G1 <- sqrt(conMat1$byClass[[1]] * conMat1$byClass[[2]])
 G2 <- sqrt(conMat2$byClass[[1]] * conMat2$byClass[[2]])
@@ -257,6 +250,7 @@ G3 <- sqrt(conMat3$byClass[[1]] * conMat3$byClass[[2]])
 print(paste("Sensitivity=", conMat$byClass[[1]]))
 print(paste("Specificity", conMat$byClass[[2]]))
 
+##################################### Pplus & Pneg ##############################################################
 
 Pplus <- conMat$byClass[[1]] / (1 - conMat$byClass[[2]])
 Pneg <- (1 - conMat$byClass[[1]]) / conMat$byClass[[2]]
@@ -288,6 +282,7 @@ YI2 <- conMat2$byClass[[1]] - (1 - conMat2$byClass[[2]])
 YI3 <- conMat3$byClass[[1]] - (1 - conMat3$byClass[[2]])
 
 ################################### Precision Recall plots ####################################################
+
 library(PRROC)
 
 fg <- results %>% filter(testactual == 1) %>% select(pred)
@@ -326,8 +321,10 @@ PRcurves
 
 #n = 4; tiff("PRcurves.tiff", width=3.5*n, height=2.33*n, units="in", res=3000/n); print(PRcurves); dev.off()
 
-##################################################################################################################
+###################################### ROC Curves #######################################################
+
 library(pROC)
+
 roc <- roc(results$testactual, results$pred)
 roc1 <- roc(results1$testactual1, results1$pred1)
 roc2 <- roc(results2$testactual2, results2$pred2)
@@ -357,6 +354,7 @@ roc_curves
 #n = 4; tiff("roc_curves.tiff", width=3.5*n, height=2.33*n, units="in", res=3000/n); print(roc_curves); dev.off()
 
 
+###################################### Show Results #######################################################
 
 ###### Last available year
 print("Last available year")
@@ -439,7 +437,8 @@ density_plot <- ggplot() +
 #n = 4; tiff("density_plot.tiff", width=3.5*n, height=2.33*n, units="in", res=3000/n); print(density_plot); dev.off()
 
 
-################################################################################################################
+############################################## Variable Important plots all years##########################
+
 #Overall model variable importance
 importancexgb_data <- xgb.importance(colnames(x_train), model = model)
 importancexgb <- importancexgb_data
@@ -452,7 +451,6 @@ importancexgb
 
 #n = 4; tiff("importancexgb.tiff", width=3.5*n, height=2.33*n, units="in", res=3000/n); print(importancexgb); dev.off()
 
-
 importancexgb1_data <- xgb.importance(colnames(x_train1), model = model1)
 importancexgb1 <- importancexgb1_data
 importancexgb1 <- xgb.ggplot.importance(importancexgb1, top_n = 10, n_clusters = 1) +
@@ -464,7 +462,6 @@ importancexgb1
 
 #n = 4; tiff("importancexgb1.tiff", width=3.5*n, height=2.33*n, units="in", res=3000/n); print(importancexgb1); dev.off()
 
-
 importancexgb2_data <- xgb.importance(colnames(x_train2), model = model2)
 importancexgb2 <- importancexgb2_data
 importancexgb2 <- xgb.ggplot.importance(importancexgb2, top_n = 10, n_clusters = 1) +
@@ -475,7 +472,6 @@ importancexgb2 <- xgb.ggplot.importance(importancexgb2, top_n = 10, n_clusters =
 importancexgb2
 
 #n = 4; tiff("importancexgb2.tiff", width=3.5*n, height=2.33*n, units="in", res=3000/n); print(importancexgb2); dev.off()
-
 
 importancexgb3_data <- xgb.importance(colnames(x_train3), model = model3)
 importancexgb3 <- importancexgb3_data
@@ -500,6 +496,7 @@ colnames(importancexgb_ALL) <- c("Feature", "FirstYear", "Feature1", "SecondYear
 importancexgb_ALL <- as.data.frame(importancexgb_ALL)
 
 library(tidyverse)
+
 feature_suffix <- c("", "1", "2", "3")
 year_prefix <- c("First", "Second", "Third", "Fourth")
 
@@ -544,7 +541,9 @@ ggplot(xy, aes(x=Year, y=Gain, group=Gain, label=Variable)) +
   scale_fill_gradient2(low="red", mid="yellow", high="green")
 
 ##################################### XGBoost Explainer on the Optimised model ##################################
+
 #The XGBoost Explainer
+
 library(xgboostExplainer)
 
 explainer <- buildExplainer(model, dtrain, type = "binary",
@@ -582,9 +581,6 @@ bankrupt_firms %>%
   filter(index == idx_to_get)
 
 
-
-
-
 #save that firm
 idx_to_get <- as.integer(14415)
 y_test[idx_to_get]
@@ -593,6 +589,7 @@ greyfirm_1 <- showWaterfall(model, explainer, dtest,
                            data.matrix(x_test), idx_to_get, type = "binary")
 
 greyfirm_1
+
 #n = 4; tiff("Grey_firm_bankrupt_predictedActive.tiff", width=3.5*n, height=2.33*n, units="in", res=3000/n); print(greyfirm_1); dev.off()
 
 
