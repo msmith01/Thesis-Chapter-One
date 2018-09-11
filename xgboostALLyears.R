@@ -1,4 +1,4 @@
-rm(list=ls(all=TRUE))
+#rm(list=ls(all=TRUE))
 library(readr)
 library(dplyr)
 setwd('C:/Users/Matt/Desktop/PhD-thesis/FINAL/')
